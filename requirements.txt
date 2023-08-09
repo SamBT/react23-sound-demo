@@ -47,3 +47,5 @@ bqplot
 
 # extra libraries
 ipytone
+soundfile
+audioread
