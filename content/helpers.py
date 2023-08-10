@@ -332,21 +332,28 @@ def interactive_sampling():
     plt.legend(ncol=2,loc='upper center')
     plt.xlabel("Time [seconds]")
     plt.ylabel("Amplitude")
+    ax = plt.gca()
     
     style = {'description_width': 'initial'}
     fslider = wg.FloatSlider(value=freq,min=1,max=10,step=0.1,description=f"Frequency",style=style)
     rslider = wg.IntSlider(value=samp_rate,min=1,max=100,step=1,description=f"Sampling Rate",style=style)
+    oslider = wg.FloatSlider(value=0,min=0,max=1,step=0.01,description="Offset",style=style)
+    tslider = wg.FloatSlider(value=t,min=0,max=10,step=0.1,description="Time Range",style=style)
     
-    def update(freq,rate):
-        times = np.linspace(0,t,t*rate+1)
+    def update(freq,rate,offset,tmax):
+        dt = 1/float(rate)
+        times = np.arange(0+offset,tmax+offset+dt,dt)
         waveform = np.sin(2*np.pi*freq*times)
         line.set_xdata(times)
         line.set_ydata(waveform)
+        fine_times = np.linspace(0,tmax,1000)
+        line2.set_xdata(fine_times)
         line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        ax.set_xlim([0,tmax])
         fig.canvas.draw_idle()
-    act = wg.interactive(update,freq=fslider,rate=rslider)
+    act = wg.interactive(update,freq=fslider,rate=rslider,offset=oslider,tmax=tslider)
     plt.show()
-    display(wg.HBox([fslider,rslider]))
+    display(wg.VBox([wg.HBox([fslider,rslider]),wg.HBox([oslider,tslider])]))
 
 def minmax_scale(x):
     xmin = np.min(x)
@@ -365,11 +372,11 @@ def digitize(x,bit_depth=8):
     return digi
 
 def fast_digitize(x,bit_depth=8):
-    x = (x - x.min())/(x.max()-x.min())
-    x = np.rint(x*(2**bit_depth-1))
-    #steps = np.linspace(0,2**bit_depth,2**bit_depth,endpoint=False).reshape(-1,1)
-    #digi = steps[np.argmin(np.abs(steps-x),axis=0),0]
-    digi = minmax_scale(x)
+    # assuming x varies between -1 and +1
+    if x.max() == x.min():
+        return x
+    x = np.rint(((x+1)/2)*(2**bit_depth-1))/(2**bit_depth-1)
+    digi = 2*(x-0.5)
     return digi
 
 def interactive_bitdepth():
@@ -389,26 +396,35 @@ def interactive_bitdepth():
     plt.legend(ncol=2,loc='upper center')
     plt.xlabel("Time [seconds]")
     plt.ylabel("Amplitude")
+    ax = plt.gca()
     
     style = {'description_width': 'initial'}
     fslider = wg.FloatSlider(value=freq,min=1,max=10,step=0.1,description=f"Frequency",style=style)
     rslider = wg.IntSlider(value=samp_rate,min=1,max=100,step=1,description=f"Sampling Rate",style=style)
     bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    oslider = wg.FloatSlider(value=0,min=0,max=1,step=0.01,description="Offset",style=style)
+    tslider = wg.FloatSlider(value=t,min=0,max=10,step=0.1,description="Time Range",style=style)
     
-    def update(freq,rate,bitdepth):
-        times = np.linspace(0,t,t*rate+1)
+    def update(freq,rate,offset,tmax,bitdepth):
+        dt = 1/float(rate)
+        times = np.arange(0+offset,tmax+offset+dt,dt)
         waveform = np.sin(2*np.pi*freq*times)
+        tol=1e-10
+        waveform[np.abs(waveform)<tol] = 0
         line.set_xdata(times)
-        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
+        line.set_ydata(fast_digitize(waveform,bit_depth=bitdepth))
+        fine_times = np.linspace(0,tmax,1000)
+        line2.set_xdata(fine_times)
         line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        ax.set_xlim([0,tmax])
         fig.canvas.draw_idle()
-    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
+    act = wg.interactive(update,freq=fslider,rate=rslider,offset=oslider,tmax=tslider,bitdepth=bdslider)
     plt.show()
-    display(wg.HBox([fslider,rslider,bdslider]))
+    display(wg.VBox([wg.HBox([fslider,rslider,bdslider]),wg.HBox([oslider,tslider])]))
 
 def interactive_bitdepth_sampling_player():
     t = 0.01
-    freq = 1000
+    freq = 440
     samp_rate = 5000
     bd = 8
     times = np.linspace(0,t,int(t*samp_rate)+1)
@@ -424,27 +440,38 @@ def interactive_bitdepth_sampling_player():
     plt.legend(ncol=2,loc='upper center')
     plt.xlabel("Time [seconds]")
     plt.ylabel("Amplitude")
+    ax = plt.gca()
     
     style = {'description_width': 'initial'}
     fslider = wg.FloatSlider(value=freq,min=100,max=2000,step=1,description=f"Frequency",style=style)
-    rslider = wg.IntSlider(value=samp_rate,min=500,max=44100,step=1,description=f"Sampling Rate",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=100,max=44100,step=5,description=f"Sampling Rate",style=style)
     bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
-    def update(freq,rate,bitdepth):
-        times = np.linspace(0,t,int(t*rate)+1)
+    oslider = wg.FloatSlider(value=0,min=0,max=0.02,step=0.0002,description="Offset",style=style,readout_format=".4f")
+    tslider = wg.FloatSlider(value=t,min=0,max=0.1,step=0.01,description="Time Range",style=style,readout_format=".4f")
+
+    def update(freq,rate,offset,tmax,bitdepth):
+        dt = 1/float(rate)
+        times = np.arange(0+offset,tmax+offset+dt,dt)
         waveform = np.sin(2*np.pi*freq*times)
+        tol=1e-10
+        waveform[np.abs(waveform)<tol] = 0
         line.set_xdata(times)
-        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
+        line.set_ydata(fast_digitize(waveform,bit_depth=bitdepth))
+        fine_times = np.linspace(0,tmax,int(44100*tmax)+1)
+        line2.set_xdata(fine_times)
         line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
-        ax.set_title(f"Freq = {freq}")
+        ax.set_xlim([0,tmax])
         fig.canvas.draw_idle()
-    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
+    act = wg.interactive(update,freq=fslider,rate=rslider,offset=oslider,tmax=tslider,bitdepth=bdslider)
 
     playNote = wg.Button(description=f"Play Sampled Note", style=style)
     def play_note(click):
         duration = 1
         size = int(rslider.value * duration)
-        factor = fslider.value * np.pi * 2 / rslider.value
-        waveform = digitize(np.sin(np.arange(size) * factor),bit_depth=bdslider.value)
+        factor = float(fslider.value) * np.pi * 2
+        dt = 1/float(rslider.value)
+        times = np.arange(0+oslider.value,duration+oslider.value+dt,dt)
+        waveform = fast_digitize(np.sin(times * factor),bit_depth=bdslider.value)
         down_rate = 44100/rslider.value
         buff = ipytone.AudioBuffer(url_or_array=waveform)
         player = ipytone.Player(buff).to_destination()
@@ -464,25 +491,31 @@ def interactive_bitdepth_sampling_player():
 
     plt.show()
     #display(wg.HBox([fslider,rslider,bdslider]))
-    display(wg.VBox([wg.HBox([fslider,rslider,bdslider]),wg.HBox([playNote,playTrue])]))
+    display(wg.VBox([wg.HBox([fslider,rslider,bdslider]),wg.HBox([oslider,tslider]),wg.HBox([playNote,playTrue])]))
 
 def bitdepth_sampling_chord():
     A_major = [440,554.37,659.25,880]
     style = {'description_width': 'initial'}
     fsliders = [wg.FloatSlider(value=A_major[i],min=100,max=2000,step=1,description=f"Frequency {i}",style=style) for i in range(len(A_major))]
-    rslider = wg.IntSlider(value=5000,min=500,max=10000,step=1,description=f"Sampling Rate",style=style)
+    rslider = wg.IntSlider(value=5000,min=100,max=10000,step=5,description=f"Sampling Rate",style=style)
     bdslider = wg.IntSlider(value=8,min=1,max=16,step=1,description=f"Bit Depth",style=style)
     dslider = wg.FloatSlider(value=1,min=0.1,max=10,step=0.1,description="Duration",style=style)
+    oslider = wg.FloatSlider(value=0,min=0,max=0.02,step=0.0002,description="Offset",style=style,readout_format=".4f")
 
     playNote = wg.Button(description=f"Play Chord", style=style)
     def play_note(click):
         duration = dslider.value
         size = int(rslider.value * duration)
         waveforms = []
+        dt = 1/float(rslider.value)
+        times = np.arange(0+oslider.value,duration+oslider.value+dt,dt)
+        norm = float(len(A_major))
         for i in range(len(A_major)):
-            factor = fsliders[i].value * np.pi * 2 / rslider.value
-            waveforms.append(digitize(np.sin(np.arange(size) * factor),bit_depth=bdslider.value))
-        waveform = sum(waveforms)
+            factor = float(fsliders[i].value) * np.pi * 2
+            waveforms.append(np.sin(times * factor)/norm)
+            #factor = fsliders[i].value * np.pi * 2 / rslider.value
+            #waveforms.append(digitize(np.sin(np.arange(size) * factor),bit_depth=bdslider.value))
+        waveform = fast_digitize(sum(waveforms),bit_depth=bdslider.value)
         down_rate = 44100/rslider.value
         buff = ipytone.AudioBuffer(url_or_array=waveform)
         player = ipytone.Player(buff).to_destination()
@@ -490,11 +523,11 @@ def bitdepth_sampling_chord():
         player.volume.value = -5
         player.start().stop(f"+{duration}")
     playNote.on_click(play_note)
-    display(wg.VBox(fsliders+[wg.HBox([rslider,bdslider,dslider]),playNote]))
+    display(wg.VBox(fsliders+[wg.HBox([rslider,bdslider]),wg.HBox([dslider,oslider]),playNote]))
 
 def beethoven_player():
     style = {'description_width': 'initial'}
-    rslider = wg.IntSlider(value=44100,min=1000,max=44100,step=1,description=f"Sampling Rate",style=style)
+    rslider = wg.IntSlider(value=44100,min=1000,max=44100,step=5,description=f"Sampling Rate",style=style)
     bdslider = wg.IntSlider(value=16,min=1,max=16,step=1,description=f"Bit Depth",style=style)
     dslider = wg.FloatSlider(value=7,min=0.1,max=7,step=0.1,description="Duration",style=style)
 
@@ -507,7 +540,8 @@ def beethoven_player():
     def play(click):
         waveform = fast_digitize(audio,bit_depth=bdslider.value)
         down_rate = 44100/float(rslider.value)
-        t_sample = np.linspace(t[0],t[-1],int(t[-1]*rslider.value+1))
+        dt = 1/float(rslider.value)
+        t_sample = np.arange(t[0],t[-1]+dt,dt)
         interp = np.interp(t_sample,t,waveform)
         line.set_xdata(t_sample)
         line.set_ydata(interp)
