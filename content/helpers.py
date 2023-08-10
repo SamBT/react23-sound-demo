@@ -427,7 +427,7 @@ def interactive_bitdepth_sampling_player():
     
     style = {'description_width': 'initial'}
     fslider = wg.FloatSlider(value=freq,min=100,max=2000,step=1,description=f"Frequency",style=style)
-    rslider = wg.IntSlider(value=samp_rate,min=500,max=10000,step=1,description=f"Sampling Rate",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=500,max=44100,step=1,description=f"Sampling Rate",style=style)
     bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
     def update(freq,rate,bitdepth):
         times = np.linspace(0,t,int(t*rate)+1)
