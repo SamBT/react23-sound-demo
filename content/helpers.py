@@ -7,7 +7,6 @@ from scipy.signal import square, sawtooth
 from scipy.io import wavfile
 import time
 from IPython.display import display
-from matplotlib.widgets import Slider, Button
 
 def sine_function(t,frequency,amp):
     return amp * np.sin(2 * np.pi * frequency * t) # this is the equation written in the cell above!
@@ -33,53 +32,34 @@ def interactive_sine(time_interval,
     ax.set_xlabel('Time t [s]')
     ax.set_ylabel(r"A$\sin(2\pi ft)$")
     
-    # adjust the main plot to make room for the sliders
-    fig.subplots_adjust(left=0.25, bottom=0.25)
-    
-    # Make a horizontal slider to control the frequency.
-    axfreq = fig.add_axes([0.25, 0.1, 0.65, 0.03])
-    freq_slider = Slider(
-        ax=axfreq,
-        label=r'Frequency $f$ [Hz]',
-        valmin=1,
-        valmax=freq_max,
-        valinit=initial_frequency,
-        valstep=1
-    )
-    
-    # Make a vertically oriented slider to control the sample rate
-    axamp = fig.add_axes([0.1, 0.25, 0.0225, 0.63])
-    amp_slider = Slider(
-        ax=axamp,
-        label=r"Amplitude $A$",
-        valmin=0.1,
-        valmax=amp_max,
-        valstep=0.1,
-        valinit=initial_amplitude,
-        orientation="vertical"
-    )
+    # Make sliders to control freq/amplitude   
+    freq_slider = wg.FloatSlider(value=initial_frequency,
+                                 min=1,
+                                 max=freq_max,
+                                 valstep=1,
+                                description=r'Frequency $f$ [Hz]')
+    amp_slider = wg.FloatSlider(value=initial_amplitude,
+                                min=0.1,
+                                max=amp_max,
+                                description=r"Amplitude")
     
     # The function to be called anytime a slider's value changes
-    def update(val):
-        line.set_ydata(sine_function(t,freq_slider.val,amp_slider.val))
+    def update(freq,amp):
+        line.set_ydata(sine_function(t,freq,amp))
         fig.canvas.draw_idle()
     
+    act = wg.interactive(update,freq=freq_slider,amp=amp_slider)
     
-    # register the update function with each slider
-    freq_slider.on_changed(update)
-    amp_slider.on_changed(update)
-    
-    # Create a `matplotlib.widgets.Button` to reset the sliders to initial values.
-    resetax = fig.add_axes([0.8, 0.025, 0.1, 0.04])
-    button = Button(resetax, 'Reset', hovercolor='0.975')
-    
-    
-    def reset(event):
-        freq_slider.reset()
-        amp_slider.reset()
-    button.on_clicked(reset)
-    
+    resetAll = wg.Button(description=f"Reset")
+    def reset_all(click):
+        amp_slider.value = initial_amplitude
+        freq_slider.value = initial_frequency
+    resetAll.on_click(reset_all)
+
     plt.show()
+    display(wg.HBox(act.children[:-1]))
+    display(act.children[-1])#Show the output
+    display(wg.HBox([resetAll]))
 
 def interactive_wave(time_interval,
                     initial_amplitude,
@@ -99,7 +79,7 @@ def interactive_wave(time_interval,
     ax.set_ylabel(r"Signal")
     plt.show()
     
-    # Makea sliders to control freq/amplitude   
+    # Make sliders to control freq/amplitude   
     freq_slider = wg.FloatSlider(value=initial_frequency,
                                  min=1,
                                  max=freq_max,
@@ -335,6 +315,38 @@ def interactive_sho():
     display(wg.HBox([damping]))
     plt.show()
 
+def interactive_sampling():
+    t = 2
+    freq = 1
+    samp_rate = 30
+    times = np.linspace(0,t,t*samp_rate+1)
+    fine_times = np.linspace(0,t,1000)
+    waveform = np.sin(2*np.pi*freq*times)
+    fine_waveform = np.sin(2*np.pi*freq*fine_times)
+    
+    fig = plt.figure(figsize=(10,4))
+    line, = plt.plot(times,waveform,label="Sampled Waveform",marker='.',markersize=8)
+    line2, = plt.plot(fine_times,fine_waveform,linestyle='--',color='forestgreen',label="True Waveform")
+    plt.ylim([-1.2,1.5])
+    plt.legend(ncol=2,loc='upper center')
+    plt.xlabel("Time [seconds]")
+    plt.ylabel("Amplitude")
+    
+    style = {'description_width': 'initial'}
+    fslider = wg.FloatSlider(value=freq,min=1,max=10,step=0.1,description=f"Frequency",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=1,max=100,step=1,description=f"Sampling Rate",style=style)
+    
+    def update(freq,rate):
+        times = np.linspace(0,t,t*rate+1)
+        waveform = np.sin(2*np.pi*freq*times)
+        line.set_xdata(times)
+        line.set_ydata(waveform)
+        line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        fig.canvas.draw_idle()
+    act = wg.interactive(update,freq=fslider,rate=rslider)
+    plt.show()
+    display(wg.HBox([fslider,rslider]))
+
 def minmax_scale(x):
     xmin = np.min(x)
     xmax = np.max(x)
@@ -342,3 +354,140 @@ def minmax_scale(x):
     x = x-0.5 # scale to [-0.5,0.5]
     x = 2*x # scale to [-1,1]
     return x
+
+def digitize(x,bit_depth=8):
+    x = (x - x.min())/(x.max()-x.min())
+    x = np.rint(x*(2**bit_depth-1))
+    steps = np.linspace(0,2**bit_depth,2**bit_depth,endpoint=False).reshape(-1,1)
+    digi = steps[np.argmin(np.abs(steps-x),axis=0),0]
+    digi = minmax_scale(digi)
+    return digi
+
+def interactive_bitdepth():
+    t = 2
+    freq = 1
+    samp_rate = 30
+    bd = 8
+    times = np.linspace(0,t,t*samp_rate+1)
+    fine_times = np.linspace(0,t,1000)
+    waveform = np.sin(2*np.pi*freq*times)
+    fine_waveform = np.sin(2*np.pi*freq*fine_times)
+    
+    fig = plt.figure(figsize=(10,4))
+    line, = plt.plot(times,waveform,label="Sampled Waveform",marker='.',markersize=8)
+    line2, = plt.plot(fine_times,fine_waveform,linestyle='--',color='forestgreen',label="True Waveform")
+    plt.ylim([-1.2,1.5])
+    plt.legend(ncol=2,loc='upper center')
+    plt.xlabel("Time [seconds]")
+    plt.ylabel("Amplitude")
+    
+    style = {'description_width': 'initial'}
+    fslider = wg.FloatSlider(value=freq,min=1,max=10,step=0.1,description=f"Frequency",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=1,max=100,step=1,description=f"Sampling Rate",style=style)
+    bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    
+    def update(freq,rate,bitdepth):
+        times = np.linspace(0,t,t*rate+1)
+        waveform = np.sin(2*np.pi*freq*times)
+        line.set_xdata(times)
+        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
+        line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        fig.canvas.draw_idle()
+    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
+    plt.show()
+    display(wg.HBox([fslider,rslider,bdslider]))
+
+
+def ibd2():
+    t = 0.01
+    freq = 440
+    samp_rate = 10000
+    bd = 8
+    times = np.linspace(0,t,int(t*samp_rate)+1)
+    fine_times = np.linspace(0,t,1000)
+    waveform = np.sin(2*np.pi*freq*times)
+    fine_waveform = np.sin(2*np.pi*freq*fine_times)
+    
+    fig = plt.figure(figsize=(10,4))
+    line, = plt.plot(times,waveform,label="Sampled Waveform",marker='.',markersize=8)
+    line2, = plt.plot(fine_times,fine_waveform,linestyle='--',color='forestgreen',label="True Waveform")
+    plt.ylim([-1.2,1.5])
+    plt.legend(ncol=2,loc='upper center')
+    plt.xlabel("Time [seconds]")
+    plt.ylabel("Amplitude")
+    
+    style = {'description_width': 'initial'}
+    fslider = wg.FloatSlider(value=freq,min=100,max=1000,step=1,description=f"Frequency",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=1000,max=10000,step=1,description=f"Sampling Rate",style=style)
+    bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    
+    def update(freq,rate,bitdepth):
+        times = np.linspace(0,t,int(t*rate)+1)
+        waveform = np.sin(2*np.pi*freq*times)
+        line.set_xdata(times)
+        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
+        line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        fig.canvas.draw_idle()
+    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
+    plt.show()
+    display(wg.HBox([fslider,rslider,bdslider]))
+
+def interactive_bitdepth_sampling_player():
+    t = 0.01
+    freq = 440
+    samp_rate = 5000
+    bd = 8
+    times = np.linspace(0,t,int(t*samp_rate)+1)
+    fine_times = np.linspace(0,t,int(44100*t)+1)
+    waveform = np.sin(2*np.pi*freq*times)
+    fine_waveform = np.sin(2*np.pi*freq*fine_times)
+    
+    fig = plt.figure(figsize=(10,4))
+    line, = plt.plot(times,waveform,label="Sampled Waveform",marker='.',markersize=8)
+    line2, = plt.plot(fine_times,fine_waveform,linestyle='--',color='forestgreen',label="True Waveform")
+    ax = plt.gca()
+    plt.ylim([-1.2,1.5])
+    plt.legend(ncol=2,loc='upper center')
+    plt.xlabel("Time [seconds]")
+    plt.ylabel("Amplitude")
+    
+    style = {'description_width': 'initial'}
+    fslider = wg.FloatSlider(value=freq,min=100,max=2000,step=1,description=f"Frequency",style=style)
+    rslider = wg.IntSlider(value=samp_rate,min=500,max=10000,step=1,description=f"Sampling Rate",style=style)
+    bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    def update(freq,rate,bitdepth):
+        times = np.linspace(0,t,int(t*rate)+1)
+        waveform = np.sin(2*np.pi*freq*times)
+        line.set_xdata(times)
+        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
+        line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
+        ax.set_title(f"Freq = {freq}")
+        fig.canvas.draw_idle()
+    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
+
+    playNote = wg.Button(description=f"Play Sampled Note", style=style)
+    def play_note(click):
+        duration = 1
+        size = int(rslider.value * duration)
+        factor = fslider.value * np.pi * 2 / rslider.value
+        waveform = digitize(np.sin(np.arange(size) * factor),bit_depth=bdslider.value)
+        down_rate = 44100/rslider.value
+        buff = ipytone.AudioBuffer(url_or_array=waveform)
+        player = ipytone.Player(buff).to_destination()
+        player.playback_rate = 1/down_rate
+        player.volume.value = -5
+        player.start().stop(f"+{duration}")
+    playNote.on_click(play_note)
+
+    osc = ipytone.Oscillator(volume=-5).to_destination()
+    playTrue = wg.Button(description=f"Play True Note", style=style)
+    def play_true(click):
+        duration = 1
+        osc.frequency.value = fslider.value
+        print(osc.frequency)
+        osc.start().stop(f"+1")
+    playTrue.on_click(play_true)
+
+    plt.show()
+    #display(wg.HBox([fslider,rslider,bdslider]))
+    display(wg.VBox([wg.HBox([fslider,rslider,bdslider]),wg.HBox([playNote,playTrue])]))
