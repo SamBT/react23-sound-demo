@@ -364,6 +364,14 @@ def digitize(x,bit_depth=8):
     digi = minmax_scale(digi)
     return digi
 
+def fast_digitize(x,bit_depth=8):
+    x = (x - x.min())/(x.max()-x.min())
+    x = np.rint(x*(2**bit_depth-1))
+    #steps = np.linspace(0,2**bit_depth,2**bit_depth,endpoint=False).reshape(-1,1)
+    #digi = steps[np.argmin(np.abs(steps-x),axis=0),0]
+    digi = minmax_scale(x)
+    return digi
+
 def interactive_bitdepth():
     t = 2
     freq = 1
@@ -457,3 +465,58 @@ def interactive_bitdepth_sampling_player():
     plt.show()
     #display(wg.HBox([fslider,rslider,bdslider]))
     display(wg.VBox([wg.HBox([fslider,rslider,bdslider]),wg.HBox([playNote,playTrue])]))
+
+def bitdepth_sampling_chord():
+    A_major = [440,554.37,659.25,880]
+    style = {'description_width': 'initial'}
+    fsliders = [wg.FloatSlider(value=A_major[i],min=100,max=2000,step=1,description=f"Frequency {i}",style=style) for i in range(len(A_major))]
+    rslider = wg.IntSlider(value=5000,min=500,max=10000,step=1,description=f"Sampling Rate",style=style)
+    bdslider = wg.IntSlider(value=8,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    dslider = wg.FloatSlider(value=1,min=0.1,max=10,step=0.1,description="Duration",style=style)
+
+    playNote = wg.Button(description=f"Play Chord", style=style)
+    def play_note(click):
+        duration = dslider.value
+        size = int(rslider.value * duration)
+        waveforms = []
+        for i in range(len(A_major)):
+            factor = fsliders[i].value * np.pi * 2 / rslider.value
+            waveforms.append(digitize(np.sin(np.arange(size) * factor),bit_depth=bdslider.value))
+        waveform = sum(waveforms)
+        down_rate = 44100/rslider.value
+        buff = ipytone.AudioBuffer(url_or_array=waveform)
+        player = ipytone.Player(buff).to_destination()
+        player.playback_rate = 1/down_rate
+        player.volume.value = -5
+        player.start().stop(f"+{duration}")
+    playNote.on_click(play_note)
+    display(wg.VBox(fsliders+[wg.HBox([rslider,bdslider,dslider]),playNote]))
+
+def beethoven_player():
+    style = {'description_width': 'initial'}
+    rslider = wg.IntSlider(value=44100,min=1000,max=44100,step=1,description=f"Sampling Rate",style=style)
+    bdslider = wg.IntSlider(value=16,min=1,max=16,step=1,description=f"Bit Depth",style=style)
+    dslider = wg.FloatSlider(value=7,min=0.1,max=7,step=0.1,description="Duration",style=style)
+
+    audio = np.load('media/beethoven.npy')
+    t = np.arange(len(audio))/44100
+    playSong = wg.Button(description=f"Play Clip", style=style)
+
+    fig = plt.figure()
+    line, = plt.plot(t,audio)
+    def play(click):
+        waveform = fast_digitize(audio,bit_depth=bdslider.value)
+        down_rate = 44100/float(rslider.value)
+        t_sample = np.linspace(t[0],t[-1],int(t[-1]*rslider.value+1))
+        interp = np.interp(t_sample,t,waveform)
+        line.set_xdata(t_sample)
+        line.set_ydata(interp)
+        fig.canvas.draw_idle()
+        buff = ipytone.AudioBuffer(url_or_array=interp)
+        player = ipytone.Player(buff).to_destination()
+        player.playback_rate = 1/down_rate
+        player.volume.value = -5
+        player.start().stop(f"+{dslider.value}")
+    playSong.on_click(play)
+    plt.show()
+    display(wg.VBox([wg.HBox([rslider,bdslider,dslider]),playSong]))
