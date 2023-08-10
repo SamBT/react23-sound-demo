@@ -236,7 +236,7 @@ def sine_coeffs(n):
 
 def fourier_sandbox():
     nmax = 50
-    plt.figure(figsize=(6,4))
+    fig = plt.figure(figsize=(6,4))
     t = np.linspace(0,4,1000)
     sines = np.concatenate([np.sin(n*np.pi*t).reshape(1,-1) for n in range(1,nmax)],axis=0)
     coeffs_triangle = np.array([triangle_coeffs(n) for n in range(1,nmax)]).reshape(-1,1)
@@ -299,7 +299,7 @@ def interactive_sho():
     t = np.linspace(0,5,1000)
     sol0 = solve_sho(beta0,t)
 
-    plt.figure(figsize=(6,4))
+    fig = plt.figure(figsize=(6,4))
     ax = plt.gca()
     line, = plt.plot(t,sol0)
     ax.set_title(f"Damping = {beta0}")
@@ -310,6 +310,7 @@ def interactive_sho():
         sol = solve_sho(beta,t)
         line.set_ydata(sol)
         ax.set_title(f"Damping = {beta}")
+        fig.canvas.draw_idle()
     damping = wg.FloatSlider(value=beta0,min=0,max=10,step=0.05,description=r'Damping')
     act = wg.interactive(change_sol,beta=damping)
     display(wg.HBox([damping]))
@@ -397,44 +398,9 @@ def interactive_bitdepth():
     plt.show()
     display(wg.HBox([fslider,rslider,bdslider]))
 
-
-def ibd2():
-    t = 0.01
-    freq = 440
-    samp_rate = 10000
-    bd = 8
-    times = np.linspace(0,t,int(t*samp_rate)+1)
-    fine_times = np.linspace(0,t,1000)
-    waveform = np.sin(2*np.pi*freq*times)
-    fine_waveform = np.sin(2*np.pi*freq*fine_times)
-    
-    fig = plt.figure(figsize=(10,4))
-    line, = plt.plot(times,waveform,label="Sampled Waveform",marker='.',markersize=8)
-    line2, = plt.plot(fine_times,fine_waveform,linestyle='--',color='forestgreen',label="True Waveform")
-    plt.ylim([-1.2,1.5])
-    plt.legend(ncol=2,loc='upper center')
-    plt.xlabel("Time [seconds]")
-    plt.ylabel("Amplitude")
-    
-    style = {'description_width': 'initial'}
-    fslider = wg.FloatSlider(value=freq,min=100,max=1000,step=1,description=f"Frequency",style=style)
-    rslider = wg.IntSlider(value=samp_rate,min=1000,max=10000,step=1,description=f"Sampling Rate",style=style)
-    bdslider = wg.IntSlider(value=bd,min=1,max=16,step=1,description=f"Bit Depth",style=style)
-    
-    def update(freq,rate,bitdepth):
-        times = np.linspace(0,t,int(t*rate)+1)
-        waveform = np.sin(2*np.pi*freq*times)
-        line.set_xdata(times)
-        line.set_ydata(digitize(waveform,bit_depth=bitdepth))
-        line2.set_ydata(np.sin(2*np.pi*freq*fine_times))
-        fig.canvas.draw_idle()
-    act = wg.interactive(update,freq=fslider,rate=rslider,bitdepth=bdslider)
-    plt.show()
-    display(wg.HBox([fslider,rslider,bdslider]))
-
 def interactive_bitdepth_sampling_player():
     t = 0.01
-    freq = 440
+    freq = 1000
     samp_rate = 5000
     bd = 8
     times = np.linspace(0,t,int(t*samp_rate)+1)
